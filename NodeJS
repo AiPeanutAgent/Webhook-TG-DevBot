@@ -1,38 +1,80 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const TelegramBot = require("node-telegram-bot-api");
 
 const token = "7160964981:AAF2ILMqsBoREb4hWS1QIt_-1e_ZWZWKK0I"; // Your bot token
 const webhookUrl = "https://hook.us2.make.com/fq2o5mke7wrp1kwjlwc63st6qq50dg64"; // Your Make.com webhook URL
-const app = express();
+const vercelBaseUrl = "https://webhook-tg-dev-bot.vercel.app"; // Replace with your Vercel deployment URL
 
+const bot = new TelegramBot(token, { polling: false }); // Disable polling since we'll use webhooks
+const app = express();
 app.use(bodyParser.json());
 
-// Telegram webhook handler
+// Telegram webhook route
 app.post("/api/server", (req, res) => {
     const msg = req.body.message;
-
-    if (!msg || !msg.text) {
-        return res.status(200).send("No valid message to process.");
+    if (!msg) {
+        console.log("No message received in webhook payload.");
+        return res.status(200).send("No message payload.");
     }
 
-    // Forward message to Make.com
+    console.log("Incoming message from Telegram:", msg);
+
+    const messageText = msg.text || "";
+
+    if (messageText.startsWith("@AIPeanut_DevBot")) {
+        console.log("Forwarding message to Make.com...");
+        forwardToWebhook(msg);
+        return res.status(200).send("Message forwarded to Make.com");
+    }
+
+    console.log("Non-filtered message received:", messageText);
+    res.status(200).send("Message received but not forwarded.");
+});
+
+// Forward message to Make.com
+function forwardToWebhook(msg) {
     const payload = {
-        Message: msg.text,
-        from: msg.from.username || msg.from.id,
-        chatId: msg.chat.id,
-        messageId: msg.message_id,
+        Message: msg.text || "(no text provided)", // Default to avoid blanks
+        from: msg.from.username || msg.from.id || "(unknown sender)",
+        chatId: msg.chat.id || "(unknown chat)",
+        messageId: msg.message_id || "(no message ID)"
     };
 
+    console.log("Payload being sent to Make.com:", payload); // Log payload for debugging
+
     axios.post(webhookUrl, payload)
-        .then(() => {
-            res.status(200).send("Message forwarded successfully.");
+        .then(response => {
+            console.log("Response status:", response.status);
+            console.log("Message forwarded successfully:", response.data);
         })
-        .catch(err => {
-            console.error("Error forwarding message:", err.message);
-            res.status(500).send("Error forwarding message.");
+        .catch(error => {
+            if (error.response) {
+                console.error("HTTP Error:", error.response.status, error.response.data);
+            } else if (error.request) {
+                console.error("Request Error:", error.request);
+            } else {
+                console.error("Error", error.message);
+            }
         });
-});
+}
 
 // Export Express app for Vercel
 module.exports = app;
+
+// Set Telegram webhook on Vercel deployment
+axios
+    .post(
+        `https://api.telegram.org/bot${token}/setWebhook`,
+        {
+            url: `${vercelBaseUrl}/api/server`
+        }
+    )
+    .then(response => {
+        console.log("Webhook set successfully:", response.data);
+    })
+    .catch(error => {
+        console.error("Error setting webhook:", error.response ? error.response.data : error.message);
+    });
+
