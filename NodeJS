@@ -3,10 +3,9 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
 
-const port = 3000;
 const token = "7160964981:AAF2ILMqsBoREb4hWS1QIt_-1e_ZWZWKK0I"; // Your bot token
 const webhookUrl = "https://hook.us2.make.com/fq2o5mke7wrp1kwjlwc63st6qq50dg64"; // Your Make.com webhook URL
-//const webhookUrl = "https://hook.us2.make.com/8yaj2vuso24ur6nr57lmbp83cykjix2w"; // Your Make.com webhook URL
+
 const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(bodyParser.json());
@@ -14,7 +13,6 @@ app.use(bodyParser.json());
 // Forward message to Make.com
 function forwardToWebhook(msg) {
     const payload = {
-//        Text: msg.text || "(no text provided)", // Default to avoid blanks
         Message: msg.text || "(no text provided)", // Default to avoid blanks
         from: msg.from.username || msg.from.id || "(unknown sender)",
         chatId: msg.chat.id || "(unknown chat)",
@@ -45,20 +43,12 @@ bot.on("message", (msg) => {
 
     if (messageText.startsWith("@AIPeanut_DevBot")) {
         console.log("Forwarding message to Make.com...");
-        
-        // Send a confirmation message to the Telegram chat
-        // bot.sendMessage(msg.chat.id, "Peanuts sent to webhook.");
-
         forwardToWebhook(msg);
         return; // Exit function without responding to the group
     }
 
-    // Handle non-filtered messages
-    // bot.sendMessage(msg.chat.id, "Message received.");
     console.log("Non-filtered message received:", messageText);
 });
 
-// Start the Express server
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+// Export handler for Vercel
+module.exports = app;
