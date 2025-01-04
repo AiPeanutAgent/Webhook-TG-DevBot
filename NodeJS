@@ -5,10 +5,33 @@ const TelegramBot = require("node-telegram-bot-api");
 
 const token = "7160964981:AAF2ILMqsBoREb4hWS1QIt_-1e_ZWZWKK0I"; // Your bot token
 const webhookUrl = "https://hook.us2.make.com/fq2o5mke7wrp1kwjlwc63st6qq50dg64"; // Your Make.com webhook URL
+const vercelBaseUrl = "https://webhook-tg-dev-bot.vercel.app"; // Replace with your Vercel deployment URL
 
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token, { polling: false }); // Disable polling since we'll use webhooks
 const app = express();
 app.use(bodyParser.json());
+
+// Telegram webhook route
+app.post("/api/server", (req, res) => {
+    const msg = req.body.message;
+    if (!msg) {
+        console.log("No message received in webhook payload.");
+        return res.status(200).send("No message payload.");
+    }
+
+    console.log("Incoming message from Telegram:", msg);
+
+    const messageText = msg.text || "";
+
+    if (messageText.startsWith("@AIPeanut_DevBot")) {
+        console.log("Forwarding message to Make.com...");
+        forwardToWebhook(msg);
+        return res.status(200).send("Message forwarded to Make.com");
+    }
+
+    console.log("Non-filtered message received:", messageText);
+    res.status(200).send("Message received but not forwarded.");
+});
 
 // Forward message to Make.com
 function forwardToWebhook(msg) {
@@ -37,18 +60,20 @@ function forwardToWebhook(msg) {
         });
 }
 
-// Handle incoming Telegram messages
-bot.on("message", (msg) => {
-    const messageText = msg.text || "";
-
-    if (messageText.startsWith("@AIPeanut_DevBot")) {
-        console.log("Forwarding message to Make.com...");
-        forwardToWebhook(msg);
-        return; // Exit function without responding to the group
-    }
-
-    console.log("Non-filtered message received:", messageText);
-});
-
-// Export handler for Vercel
+// Export Express app for Vercel
 module.exports = app;
+
+// Set Telegram webhook on Vercel deployment
+axios
+    .post(
+        `https://api.telegram.org/bot${token}/setWebhook`,
+        {
+            url: `${vercelBaseUrl}/api/server`
+        }
+    )
+    .then(response => {
+        console.log("Webhook set successfully:", response.data);
+    })
+    .catch(error => {
+        console.error("Error setting webhook:", error.response ? error.response.data : error.message);
+    });
